@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/bodgit/sevenzip/internal/util"
+	"github.com/hashicorp/go-multierror"
 	"github.com/klauspost/compress/flate"
 )
 
@@ -29,7 +30,7 @@ func (rc *readCloser) Close() error {
 		return errAlreadyClosed
 	}
 
-	if err := errors.Join(rc.fr.Close(), rc.c.Close()); err != nil {
+	if err := multierror.Append(rc.fr.Close(), rc.c.Close()).ErrorOrNil(); err != nil {
 		return fmt.Errorf("deflate: error closing: %w", err)
 	}
 

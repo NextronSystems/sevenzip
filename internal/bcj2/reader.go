@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"github.com/bodgit/sevenzip/internal/util"
+	"github.com/hashicorp/go-multierror"
 )
 
 type readCloser struct {
@@ -101,7 +102,8 @@ func (rc *readCloser) Close() error {
 		return errAlreadyClosed
 	}
 
-	if err := errors.Join(rc.main.Close(), rc.call.Close(), rc.jump.Close(), rc.rd.Close()); err != nil {
+	//nolint:lll
+	if err := multierror.Append(rc.main.Close(), rc.call.Close(), rc.jump.Close(), rc.rd.Close()).ErrorOrNil(); err != nil {
 		return fmt.Errorf("bcj2: error closing: %w", err)
 	}
 

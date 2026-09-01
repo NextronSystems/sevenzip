@@ -20,6 +20,7 @@ import (
 	"github.com/bodgit/plumbing"
 	"github.com/bodgit/sevenzip/internal/pool"
 	"github.com/bodgit/sevenzip/internal/util"
+	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/afero"
 	"go4.org/readerutil"
 )
@@ -195,7 +196,7 @@ func openReader(fs afero.Fs, name string) (io.ReaderAt, int64, []afero.File, err
 
 	info, err := f.Stat()
 	if err != nil {
-		err = errors.Join(err, f.Close())
+		err = multierror.Append(err, f.Close())
 
 		return nil, 0, nil, fmt.Errorf("sevenzip: error retrieving file info: %w", err)
 	}
@@ -215,11 +216,8 @@ func openReader(fs afero.Fs, name string) (io.ReaderAt, int64, []afero.File, err
 					break
 				}
 
-				errs := make([]error, 0, len(files)+1)
-				errs = append(errs, err)
-
 				for _, file := range files {
-					errs = append(errs, file.Close())
+					err = multierror.Append(err, file.Close())
 				}
 
 				return nil, 0, nil, fmt.Errorf("sevenzip: error opening: %w", errors.Join(errs...))
@@ -229,11 +227,8 @@ func openReader(fs afero.Fs, name string) (io.ReaderAt, int64, []afero.File, err
 
 			info, err = f.Stat()
 			if err != nil {
-				errs := make([]error, 0, len(files)+1)
-				errs = append(errs, err)
-
 				for _, file := range files {
-					errs = append(errs, file.Close())
+					err = multierror.Append(err, file.Close())
 				}
 
 				return nil, 0, nil, fmt.Errorf("sevenzip: error retrieving file info: %w", errors.Join(errs...))
@@ -263,14 +258,11 @@ func OpenReaderWithPassword(name, password string) (*ReadCloser, error) {
 	r.p = password
 
 	if err := r.init(reader, size); err != nil {
-		errs := make([]error, 0, len(files)+1)
-		errs = append(errs, err)
-
 		for _, file := range files {
-			errs = append(errs, file.Close())
+			err = multierror.Append(err, file.Close())
 		}
 
-		return nil, fmt.Errorf("sevenzip: error initialising: %w", errors.Join(errs...))
+		return nil, fmt.Errorf("sevenzip: error initialising: %w", err)
 	}
 
 	r.f = files
@@ -507,7 +499,7 @@ func (z *Reader) init(r io.ReaderAt, size int64) (err error) {
 		}
 
 		defer func() {
-			err = errors.Join(err, fr.Close())
+			err = multierror.Append(err, fr.Close()).ErrorOrNil()
 		}()
 
 		if header, err = readEncodedHeader(util.ByteReadCloser(fr)); err != nil {
@@ -593,14 +585,11 @@ func (rc *ReadCloser) Volumes() []string {
 }
 
 // Close closes the 7-zip file or volumes, rendering them unusable for I/O.
-func (rc *ReadCloser) Close() error {
-	errs := make([]error, 0, len(rc.f))
-
+func (rc *ReadCloser) Close() (err error) {
 	for _, f := range rc.f {
-		errs = append(errs, f.Close())
+		err = multierror.Append(err, f.Close()).ErrorOrNil()
 	}
 
-	err := errors.Join(errs...)
 	if err != nil {
 		err = fmt.Errorf("sevenzip: error closing: %w", err)
 	}

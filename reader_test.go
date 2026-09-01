@@ -18,6 +18,7 @@ import (
 
 	"github.com/bodgit/sevenzip"
 	"github.com/bodgit/sevenzip/internal/util"
+	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -74,7 +75,7 @@ func extractArchive(tb testing.TB, r *sevenzip.Reader, stream int, h hash.Hash, 
 		}
 
 		defer func() {
-			err = errors.Join(err, rc.Close())
+			err = multierror.Append(err, rc.Close()).ErrorOrNil()
 		}()
 
 		if err = extractFile(tb, fn(rc), h, f); err != nil {
@@ -602,7 +603,7 @@ func benchmarkArchiveNaiveParallel(b *testing.B, file string, workers int) {
 				}
 
 				defer func() {
-					err = errors.Join(err, rc.Close())
+					err = multierror.Append(err, rc.Close()).ErrorOrNil()
 				}()
 
 				return extractFile(b, rc, crc32.NewIEEE(), f)
