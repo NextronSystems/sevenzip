@@ -75,7 +75,7 @@ func calculateKey(password string, cycles int, salt []byte) ([]byte, error) {
 		}
 
 		h := sha256.New()
-		for i := range uint64(1 << cycles) {
+		for i := uint64(0); i < 1<<cycles; i++ {
 			// These will never error
 			_, _ = h.Write(b.Bytes())
 			_ = binary.Write(h, binary.LittleEndian, i)

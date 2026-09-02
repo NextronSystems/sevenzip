@@ -85,7 +85,7 @@ func readUint64(r io.ByteReader) (uint64, error) {
 		v |= uint64(b&((1<<(8-l))-1)) << (8 * l)
 	}
 
-	for i := range l {
+	for i := 0; i < l; i++ {
 		b, err := r.ReadByte()
 		if err != nil {
 			return 0, fmt.Errorf("readUint64: ReadByte error: %w", err)
@@ -169,12 +169,7 @@ func readSizes(r io.ByteReader, count uint64) ([]uint64, error) {
 		return nil, err
 	}
 
-	// Preallocate with a maximum initial capacity of 1024 to prevent memory DoS
-	// on invalid high counts. Growth via append has negligible performance impact
-	// because 7z decompression CPU cycles dominate total execution time.
-	sizes := make([]uint64, 0, min(count, 1024))
-
-	for range count {
+	for i := uint64(0); i < count; i++ {
 		size, err := readUint64(r)
 		if err != nil {
 			return nil, err
@@ -321,16 +316,13 @@ func readFolder(r util.Reader) (*folder, error) {
 
 	f.coder = make([]*coder, 0, min(coders, 16))
 
-	for range coders {
-		coder, err := readCoder(r)
-		if err != nil {
+	for i := uint64(0); i < coders; i++ {
+		if f.coder[i], err = readCoder(r); err != nil {
 			return nil, err
 		}
 
-		f.coder = append(f.coder, coder)
-
-		f.in += coder.in
-		f.out += coder.out
+		f.in += f.coder[i].in
+		f.out += f.coder[i].out
 	}
 
 	if err := checkUint64(f.in, true); err != nil {
@@ -349,7 +341,7 @@ func readFolder(r util.Reader) (*folder, error) {
 
 	f.bindPair = make([]*bindPair, 0, min(bindPairs, 16))
 
-	for range bindPairs {
+	for i := uint64(0); i < bindPairs; i++ {
 		in, err := readUint64Bounded(r, false)
 		if err != nil {
 			return nil, err
@@ -370,14 +362,14 @@ func readFolder(r util.Reader) (*folder, error) {
 
 	if f.packedStreams == 1 {
 		f.packed = []uint64{}
-		for i := range f.in {
+		for i := uint64(0); i < f.in; i++ {
 			if f.findInBindPair(i) == nil {
 				f.packed = append(f.packed, i)
 			}
 		}
 	} else {
 		f.packed = make([]uint64, f.packedStreams)
-		for i := range f.packedStreams {
+		for i := uint64(0); i < f.packedStreams; i++ {
 			if f.packed[i], err = readUint64(r); err != nil {
 				return nil, err
 			}
@@ -420,18 +412,15 @@ func readUnpackInfo(r util.Reader) (*unpackInfo, error) {
 		// folder information from there. Not clear if the offset is
 		// absolute for the whole file, or relative to some known
 		// position in the file. Cowardly waiting for an example
-		return nil, errors.New("sevenzip: TODO readUnpackInfo external") //nolint:err113
+		return nil, errors.New("sevenzip: TODO readUnpackInfo external") //nolint:goerr113
 	}
 
 	u.folder = make([]*folder, 0, min(folders, 1024))
 
-	for range folders {
-		folder, err := readFolder(r)
-		if err != nil {
+	for i := uint64(0); i < folders; i++ {
+		if u.folder[i], err = readFolder(r); err != nil {
 			return nil, err
 		}
-
-		u.folder = append(u.folder, folder)
 	}
 
 	if id, err := r.ReadByte(); err != nil || id != idCodersUnpackSize {
@@ -647,7 +636,7 @@ func readTimes(r util.Reader, count uint64) ([]time.Time, error) {
 		// folder information from there. Not clear if the offset is
 		// absolute for the whole file, or relative to some known
 		// position in the file. Cowardly waiting for an example
-		return nil, errors.New("sevenzip: TODO readTimes external") //nolint:err113
+		return nil, errors.New("sevenzip: TODO readTimes external") //nolint:goerr113
 	}
 
 	times := make([]time.Time, count)
@@ -703,7 +692,7 @@ func readNames(r util.Reader, count, length uint64) ([]string, error) {
 		// folder information from there. Not clear if the offset is
 		// absolute for the whole file, or relative to some known
 		// position in the file. Cowardly waiting for an example
-		return nil, errors.New("sevenzip: TODO readNames external") //nolint:err113
+		return nil, errors.New("sevenzip: TODO readNames external") //nolint:goerr113
 	}
 
 	utf16le := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM)
@@ -753,7 +742,7 @@ func readAttributes(r util.Reader, count uint64) ([]uint32, error) {
 		// folder information from there. Not clear if the offset is
 		// absolute for the whole file, or relative to some known
 		// position in the file. Cowardly waiting for an example
-		return nil, errors.New("sevenzip: TODO readAttributes external") //nolint:err113
+		return nil, errors.New("sevenzip: TODO readAttributes external") //nolint:goerr113
 	}
 
 	attributes := make([]uint32, count)
@@ -871,7 +860,7 @@ func readFilesInfo(r util.Reader) (*filesInfo, error) {
 				f.file[i].Attributes = a
 			}
 		case idStartPos:
-			return nil, errors.New("sevenzip: TODO idStartPos") //nolint:err113
+			return nil, errors.New("sevenzip: TODO idStartPos") //nolint:goerr113
 		case idDummy:
 			if _, err := io.CopyN(io.Discard, r, int64(length)); err != nil { //nolint:gosec
 				return nil, fmt.Errorf("readFilesInfo: CopyN error: %w", err)
@@ -900,7 +889,7 @@ func readHeader(r util.Reader) (*header, error) {
 				return nil, fmt.Errorf("readHeader: ReadByte error: %w", err)
 			}
 		*/
-		return nil, errors.New("sevenzip: TODO idArchiveProperties") //nolint:err113
+		return nil, errors.New("sevenzip: TODO idArchiveProperties") //nolint:goerr113
 	}
 
 	if id == idAdditionalStreamsInfo {
@@ -910,7 +899,7 @@ func readHeader(r util.Reader) (*header, error) {
 				return nil, fmt.Errorf("readHeader: ReadByte error: %w", err)
 			}
 		*/
-		return nil, errors.New("sevenzip: TODO idAdditionalStreamsInfo") //nolint:err113
+		return nil, errors.New("sevenzip: TODO idAdditionalStreamsInfo") //nolint:goerr113
 	}
 
 	if id == idMainStreamsInfo {
